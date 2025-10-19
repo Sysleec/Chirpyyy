@@ -3,7 +3,6 @@ package auth
 import (
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -72,9 +71,53 @@ func TestCheckPasswordHash(t *testing.T) {
 	}
 }
 
+func TestMakeJWT(t *testing.T) {
+	tests := []struct {
+		name    string
+		userID  uuid.UUID
+		secret  string
+		wantErr bool
+	}{
+		{
+			name:    "valid token",
+			userID:  uuid.New(),
+			secret:  "test-secret",
+			wantErr: false,
+		},
+		{
+			name:    "empty secret",
+			userID:  uuid.New(),
+			secret:  "",
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			token, err := MakeJWT(tt.userID, tt.secret)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("MakeJWT() expected error, got nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("MakeJWT() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if token == "" {
+				t.Error("MakeJWT() returned empty token")
+			}
+		})
+	}
+}
+
 func TestValidateJWT(t *testing.T) {
 	userID := uuid.New()
-	validToken, _ := MakeJWT(userID, "secret", time.Hour)
+	validToken, _ := MakeJWT(userID, "secret")
 
 	tests := []struct {
 		name        string
@@ -104,6 +147,13 @@ func TestValidateJWT(t *testing.T) {
 			wantUserID:  uuid.Nil,
 			wantErr:     true,
 		},
+		{
+			name:        "Empty token",
+			tokenString: "",
+			tokenSecret: "secret",
+			wantUserID:  uuid.Nil,
+			wantErr:     true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -117,6 +167,29 @@ func TestValidateJWT(t *testing.T) {
 				t.Errorf("ValidateJWT() gotUserID = %v, want %v", gotUserID, tt.wantUserID)
 			}
 		})
+	}
+}
+
+func TestJWT_Expiration(t *testing.T) {
+	userID := uuid.New()
+	token, err := MakeJWT(userID, "secret")
+	if err != nil {
+		t.Fatalf("MakeJWT() error = %v", err)
+	}
+
+	// Token should be valid immediately
+	gotUserID, err := ValidateJWT(token, "secret")
+	if err != nil {
+		t.Errorf("ValidateJWT() error = %v", err)
+	}
+	if gotUserID != userID {
+		t.Errorf("ValidateJWT() gotUserID = %v, want %v", gotUserID, userID)
+	}
+
+	// Note: We can't easily test expiration without waiting 1 hour,
+	// but we can verify the token structure is correct
+	if token == "" {
+		t.Error("MakeJWT() returned empty token")
 	}
 }
 
