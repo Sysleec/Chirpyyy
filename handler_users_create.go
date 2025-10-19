@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Sysleec/Chirpyyy/internal/auth"
+	"github.com/Sysleec/Chirpyyy/internal/database"
 	"github.com/google/uuid"
 )
 
@@ -13,11 +15,13 @@ type User struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 	Email     string    `json:"email"`
+	Password  string    `json:"password"`
 }
 
 func (cfg *apiConfig) handlerUsersCreate(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Email string `json:"email"`
+		Password string `json:"password"`
+		Email    string `json:"email"`
 	}
 	type response struct {
 		User
@@ -31,7 +35,16 @@ func (cfg *apiConfig) handlerUsersCreate(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	user, err := cfg.db.CreateUser(r.Context(), params.Email)
+	hashPass, err := auth.HashPassword(params.Password)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't create user", err)
+		return
+	}
+
+	user, err := cfg.db.CreateUser(r.Context(), database.CreateUserParams{
+		Email:          params.Email,
+		HashedPassword: hashPass,
+	})
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't create user", err)
 		return
