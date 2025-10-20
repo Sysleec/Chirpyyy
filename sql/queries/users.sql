@@ -14,6 +14,11 @@ SELECT * FROM users
 WHERE email = $1
 LIMIT 1;
 
+-- name: MakeUserIsRed :exec
+UPDATE users
+SET is_chirpy_red = TRUE
+WHERE id = $1;
+
 
 -- name: UpdateUser :one
 UPDATE users
